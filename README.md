@@ -11,11 +11,10 @@ C[N x M] = A[N x K] x B[K x M]
 ```
 
 This is the core operation behind convolution and fully-connected layers
-in neural-network inference — built as groundwork for NPU / edge-AI
-accelerator design.
+in neural-network inference.
 
 > **Status:** RTL design, fully simulated and self-checked (353/353 checks
-> passing). Not yet synthesized on an FPGA — see [Roadmap](#roadmap).
+> passing). Not yet synthesized on an FPGA.
 
 ---
 

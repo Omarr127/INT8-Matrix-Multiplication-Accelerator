@@ -149,11 +149,6 @@ python3 scripts/golden_model.py
 ```
 </details>
 
-## Roadmap
-
-- [ ] Synthesize + deploy on FPGA (Basys3 / DE10-Lite), report LUTs/FFs/DSPs and max clock
-- [ ] Weight-stationary variant, benchmarked against this one
-- [ ] Scale up array size and reduction dimension
 
 ## Structure
 

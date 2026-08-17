@@ -2,31 +2,6 @@
 // tb_int8_matmul_accelerator.sv
 // -----------------------------------------------------------------------------
 // Self-checking testbench for int8_matmul_accelerator.
-//
-// Strategy:
-//   1. Load an A[N x K] and B[K x M] matrix into the DUT via the write port.
-//   2. Pulse 'start', wait for 'done'.
-//   3. Read back every C[i][j] and compare against a software golden model
-//      computed independently in this testbench (plain SystemVerilog
-//      integer arithmetic, mirroring what a numpy reference would produce).
-//   4. Repeat for:
-//        - one hand-picked directed test (easy to verify by hand)
-//        - an edge-value test (+127 / -128 / 0) to stress sign handling and
-//          accumulation width
-//        - several randomized trials
-//        - a saturation test for the requantization stage
-//
-// Clocking discipline: all stimulus is driven on the FALLING edge of clk and
-// the DUT (like any synchronous design) samples on the RISING edge. This
-// guarantees a full half-period of setup margin ahead of every sample point
-// and avoids any race between this testbench process and the DUT's
-// always_ff blocks that would otherwise occur if both were driven/sampled
-// at the exact same simulation instant.
-//
-// Run with (Icarus Verilog):
-//   iverilog -g2012 -o sim.out rtl/*.sv tb/tb_int8_matmul_accelerator.sv
-//   vvp sim.out
-// =============================================================================
 
 `timescale 1ns/1ps
 
@@ -57,10 +32,10 @@ module tb_int8_matmul_accelerator;
     int errors = 0;
     int checks = 0;
 
-    // ---- clock: 10ns period ----
+    //  clock: 10ns period 
     always #5 clk = ~clk;
 
-    // ---- DUT ----
+    //  DUT 
     int8_matmul_accelerator #(
         .N(N), .K(K), .M(M),
         .DATA_WIDTH(DATA_WIDTH), .ACC_WIDTH(ACC_WIDTH)
@@ -80,15 +55,13 @@ module tb_int8_matmul_accelerator;
         .rd_shift    (rd_shift)
     );
 
-    // ---- software golden model storage ----
+    // software golden model storage
     int signed A_ref [0:N-1][0:K-1];
     int signed B_ref [0:K-1][0:M-1];
     logic signed [ACC_WIDTH-1:0] C_ref [0:N-1][0:M-1];
 
-    // -------------------------------------------------------------------
-    // Tasks  (all stimulus changes happen on @(negedge clk))
-    // -------------------------------------------------------------------
-
+    
+    // Tasks  
     task automatic reset_dut();
         wr_en = 0; wr_target = 0; wr_addr = '0; wr_data = '0;
         start = 0; rd_en = 0; rd_addr = '0; rd_shift = 0;
@@ -99,7 +72,7 @@ module tb_int8_matmul_accelerator;
     endtask
 
     task automatic load_matrices();
-        // Load A (target 0), flat row-major address i*K + k
+        // Load A (target 0)
         for (int i = 0; i < N; i++) begin
             for (int k = 0; k < K; k++) begin
                 @(negedge clk);
@@ -110,7 +83,7 @@ module tb_int8_matmul_accelerator;
             end
         end
 
-        // Load B (target 1), flat row-major address k*M + j
+        // Load B (target 1)
         for (int k = 0; k < K; k++) begin
             for (int j = 0; j < M; j++) begin
                 @(negedge clk);
@@ -144,7 +117,7 @@ module tb_int8_matmul_accelerator;
         @(negedge clk);
         start = 0;
 
-        // wait for done (bounded wait to avoid infinite loop on a bug)
+        // wait for done 
         for (int t = 0; t < K+5 && !done; t++) @(negedge clk);
 
         if (!done) begin
@@ -157,7 +130,7 @@ module tb_int8_matmul_accelerator;
                 @(negedge clk);
                 rd_en   = 1;
                 rd_addr = i*M + j;
-                @(negedge clk);           // DUT samples rd_addr on the posedge in between
+                @(negedge clk);           
                 rd_en = 0;
                 checks++;
                 if (rd_data_raw !== C_ref[i][j]) begin
@@ -170,9 +143,8 @@ module tb_int8_matmul_accelerator;
         $display("[INFO] %0s: checked %0d elements", test_name, N*M);
     endtask
 
-    // -------------------------------------------------------------------
+
     // Main test sequence
-    // -------------------------------------------------------------------
 `ifdef DUMP_VCD
     initial begin
         $dumpfile("wave.vcd");
@@ -183,19 +155,19 @@ module tb_int8_matmul_accelerator;
     initial begin
         reset_dut();
 
-        // ---------------- Directed test: simple hand-verifiable values ----------------
+        // Directed test: simple hand-verifiable values
         for (int i = 0; i < N; i++)
             for (int k = 0; k < K; k++)
-                A_ref[i][k] = (i == k) ? 2 : 1;   // small mix, not pure identity
+                A_ref[i][k] = (i == k) ? 2 : 1;   
 
         for (int k = 0; k < K; k++)
             for (int j = 0; j < M; j++)
-                B_ref[k][j] = j + 1;              // 1,2,3,4 repeated per row
+                B_ref[k][j] = j + 1;              
 
         load_matrices();
         run_and_check("Directed test (small positive values)");
 
-        // ---------------- Edge-value test: extremes of INT8 range ----------------
+        // Edge-value test: extremes of INT8 range 
         A_ref[0][0]=127;  A_ref[0][1]=-128; A_ref[0][2]=0;    A_ref[0][3]=127;
         A_ref[1][0]=-128; A_ref[1][1]=127;  A_ref[1][2]=-128; A_ref[1][3]=0;
         A_ref[2][0]=1;    A_ref[2][1]=-1;   A_ref[2][2]=127;  A_ref[2][3]=-128;
@@ -209,11 +181,11 @@ module tb_int8_matmul_accelerator;
         load_matrices();
         run_and_check("Edge-value test (+127/-128/0 saturation stress)");
 
-        // ---------------- Randomized tests ----------------
+        // Randomized tests
         for (int trial = 0; trial < 20; trial++) begin
             for (int i = 0; i < N; i++)
                 for (int k = 0; k < K; k++)
-                    A_ref[i][k] = $signed($urandom_range(0, 255)) - 128; // uniform INT8
+                    A_ref[i][k] = $signed($urandom_range(0, 255)) - 128; 
 
             for (int k = 0; k < K; k++)
                 for (int j = 0; j < M; j++)
@@ -223,7 +195,7 @@ module tb_int8_matmul_accelerator;
             run_and_check($sformatf("Randomized trial %0d", trial));
         end
 
-        // ---------------- Requantization saturation check ----------------
+        // Requantization saturation check 
         for (int i = 0; i < N; i++)
             for (int k = 0; k < K; k++)
                 A_ref[i][k] = 127;
@@ -239,7 +211,7 @@ module tb_int8_matmul_accelerator;
         for (int t = 0; t < K+5 && !done; t++) @(negedge clk);
 
         @(negedge clk);
-        rd_en = 1; rd_addr = 0; rd_shift = 0; // no shift -> definitely saturates
+        rd_en = 1; rd_addr = 0; rd_shift = 0; 
         @(negedge clk);
         rd_en = 0;
         checks++;
@@ -250,7 +222,7 @@ module tb_int8_matmul_accelerator;
             $display("[INFO] Requantization saturation test passed (rd_data_q = %0d)", rd_data_q);
         end
 
-        // ---------------- Summary ----------------
+        // Summary 
         $display("--------------------------------------------------");
         if (errors == 0)
             $display("ALL TESTS PASSED (%0d checks, 0 errors)", checks);

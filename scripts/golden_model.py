@@ -4,15 +4,7 @@ golden_model.py
 Independent software reference for the INT8 matrix-multiplication
 accelerator. This is the same computation the RTL performs
 (C[N x M] = A[N x K] @ B[K x M], INT8 inputs, wide accumulation) written
-in plain numpy, so it can be used to:
-
-  - Sanity-check the SystemVerilog testbench's own golden model
-  - Generate additional test vectors for regression / directed tests
-  - Explain the accelerator's math to someone without reading RTL
-
-Usage:
-    python3 golden_model.py
-"""
+in plain numpy.
 
 import numpy as np
 
